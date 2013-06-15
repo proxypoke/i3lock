@@ -59,6 +59,7 @@ static struct xkb_context *xkb_context;
 static struct xkb_keymap *xkb_keymap;
 
 cairo_surface_t *img = NULL;
+cairo_surface_t *altimg = NULL;
 bool tile = false;
 
 /* isutf, u8_dec © 2005 Jeff Bezanson, public domain */
@@ -205,6 +206,8 @@ static void input_done(void) {
         fprintf(stderr, "Authentication failure\n");
 
     pam_state = STATE_PAM_WRONG;
+    /* Switch the background image with the alternate image. */
+    img = altimg;
     clear_input();
     redraw_screen();
 
@@ -516,6 +519,7 @@ static void xcb_check_cb(EV_P_ ev_check *w, int revents) {
 int main(int argc, char *argv[]) {
     char *username;
     char *image_path = NULL;
+    char *altimage_path = NULL;
     int ret;
     struct pam_conv conv = {conv_callback, NULL};
     int curs_choice = CURS_NONE;
@@ -532,6 +536,7 @@ int main(int argc, char *argv[]) {
         {"help", no_argument, NULL, 'h'},
         {"no-unlock-indicator", no_argument, NULL, 'u'},
         {"image", required_argument, NULL, 'i'},
+        {"altimage", required_argument, NULL, 'a'},
         {"tiling", no_argument, NULL, 't'},
         {NULL, no_argument, NULL, 0}
     };
@@ -539,7 +544,7 @@ int main(int argc, char *argv[]) {
     if ((username = getenv("USER")) == NULL)
         errx(1, "USER environment variable not set, please set it.\n");
 
-    while ((o = getopt_long(argc, argv, "hvnbdc:p:ui:t", longopts, &optind)) != -1) {
+    while ((o = getopt_long(argc, argv, "hvnbdc:p:ui:a:t", longopts, &optind)) != -1) {
         switch (o) {
         case 'v':
             errx(EXIT_SUCCESS, "version " VERSION " © 2010-2012 Michael Stapelberg");
@@ -569,6 +574,9 @@ int main(int argc, char *argv[]) {
             break;
         case 'i':
             image_path = strdup(optarg);
+            break;
+        case 'a':
+            altimage_path = strdup(optarg);
             break;
         case 't':
             tile = true;
@@ -660,6 +668,19 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Could not load image \"%s\": cairo surface status %d\n",
                     image_path, cairo_surface_status(img));
             img = NULL;
+        }
+    }
+    if (altimage_path) {
+        if (!img) {
+            fprintf(stderr, "The -a option requires a valid image for the -i option to  be given.\n");
+            altimg = NULL;
+        } else {
+            altimg = cairo_image_surface_create_from_png(altimage_path);
+            if (cairo_surface_status(altimg) != CAIRO_STATUS_SUCCESS) {
+                fprintf(stderr, "Could not load alternative image \"%s\": cairo surface status %d\n",
+                        image_path, cairo_surface_status(altimg));
+                altimg = NULL;
+            }
         }
     }
 
